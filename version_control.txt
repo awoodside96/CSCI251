@@ -1,0 +1,12 @@
+43bd12c - Cleanup type annotations
+928a2b2 - Add additional documentation
+5c6055c - Break project into seperate files
+db7239b - Allow for dynamic word and file additions
+19feab2 - Rename the base project
+2423b99 - Use thread groups as per requirement
+8880ceb - Use message passing for the data flow
+c5c9bea - Create a read and search task runnable
+1a5ceaa - Create a basic word search class and parse input
+7e4ffa4 - Add a update script to sync with the server
+78ecee3 - Add gitignore
+85eef1a - Initial commit

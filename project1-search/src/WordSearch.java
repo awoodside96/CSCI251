@@ -30,6 +30,7 @@ public final class WordSearch {
          */
         if (INVALID_INPUT.matcher(args[1]).find()) {
             System.err.println("Error: Invalid input for word list. Only letters A-Z are allowed.");
+            return;
         }
 
         String[] fileNames = args[0].split(",");
