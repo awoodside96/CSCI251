@@ -61,14 +61,12 @@ public final class WordSearch {
     }
 
     private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
-    private final ArrayList<Thread> searchers;
     private final ArrayList<Thread> readers;
     private final ThreadGroup searcherGroup;
     private final ThreadGroup readerGroup;
 
     public WordSearch() {
         this.entryLists = new ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>>();
-        this.searchers = new ArrayList<Thread>();
         this.readers = new ArrayList<Thread>();
         this.searcherGroup = new ThreadGroup("Searchers");
         this.readerGroup = new ThreadGroup("Readers");
@@ -80,10 +78,9 @@ public final class WordSearch {
      * @param word the word to scan for.
      */
     public final void addWord(String word) {
-        LinkedBlockingQueue queue = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<Entry> queue = new LinkedBlockingQueue<Entry>();
         Thread thread = new Thread(searcherGroup, new SearchTask(word, queue), "Searcher for '" + word + "'");
         entryLists.add(queue);
-        searchers.add(thread);
         thread.start();
     }
 
