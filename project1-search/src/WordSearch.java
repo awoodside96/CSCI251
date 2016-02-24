@@ -1,11 +1,6 @@
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
@@ -61,17 +56,21 @@ public final class WordSearch {
             }
             search.addFile(file);
         }
-        search.catchup();
+        search.shutdown();
     }
 
     private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
-    private final ArrayList<Thread> searchers = new ArrayList<Thread>();
-    private final ArrayList<Thread> readers = new ArrayList<Thread>();
-    private final ThreadGroup searcherGroup = new ThreadGroup("Searchers");
-    private final ThreadGroup readerGroup = new ThreadGroup("Readers");
+    private final ArrayList<Thread> searchers;
+    private final ArrayList<Thread> readers;
+    private final ThreadGroup searcherGroup;
+    private final ThreadGroup readerGroup;
 
     public WordSearch() {
         this.entryLists = new ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>>();
+        this.searchers = new ArrayList<Thread>();
+        this.readers = new ArrayList<Thread>();
+        this.searcherGroup = new ThreadGroup("Searchers");
+        this.readerGroup = new ThreadGroup("Readers");
     }
 
     public final void addWord(String word) {
@@ -88,87 +87,15 @@ public final class WordSearch {
         thread.start();
     }
 
-    public final void catchup() throws InterruptedException {
+    public final void shutdown() throws InterruptedException {
         for (Thread reader : readers) {
             reader.join();
         }
-    }
-
-    public static final class Entry {
-
-        public final String text;
-        public final String file;
-
-        public Entry(String text, String file) {
-            this.text = text;
-            this.file = file;
-        }
-    }
-
-    public static final class ReadTask implements Runnable {
-
-        private final File file;
-        private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
-
-        public ReadTask(File file, ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists) {
-            this.file = file;
-            this.entryLists = entryLists;
-        }
-
-        @Override
-        public final void run() {
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                String line;
-                /**
-                 * Scan through the file line by line.
-                 */
-                while ((line = reader.readLine()) != null) {
-                    /**
-                     * Send the line to each searcher to be compared.
-                     */
-                    Entry entry = new Entry(line.toLowerCase(), file.getName());
-                    for (LinkedBlockingQueue<Entry> entryList : entryLists) {
-                        entryList.offer(entry);
-                    }
-                }
-            } catch (FileNotFoundException ex) {
-                System.out.println("Unable to find file '" + file.getName() + "', skipping.");
-            } catch (IOException ex) {
-                System.out.println("Problem while reading file '" + file.getName() + "', skipping.");
+        for (LinkedBlockingQueue<Entry> entryList : entryLists) {
+            while(!entryList.isEmpty()) {
+                // Do nothing.
             }
         }
-    }
-
-    public static final class SearchTask implements Runnable {
-
-        private final String word;
-        private final LinkedBlockingQueue<Entry> entryList;
-        private final HashSet<String> matchedFiles = new HashSet<String>();
-
-        /**
-         * Create a new SearchTask.
-         *
-         * @param word the word to search for.
-         * @param lineList the queue to monitor for incoming data.
-         */
-        public SearchTask(String word, LinkedBlockingQueue<Entry> lineList) {
-            this.word = word;
-            this.entryList = lineList;
-        }
-
-        @Override
-        public final void run() {
-            try {
-                while (!Thread.interrupted()) {
-                    Entry line = entryList.take();
-                    if (!matchedFiles.contains(line.file) && line.text.contains(word)) {
-                        matchedFiles.add(line.file);
-                        System.out.println(word + " " + line.file);
-                    }
-                }
-            } catch (InterruptedException ex) {
-                // Quietly close
-            }
-        }
+        searcherGroup.interrupt();
     }
 }
