@@ -9,13 +9,21 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 
 /**
- * @author Joseph Cumbo (jwc6999)
+ * @author Joseph Cumbo (jwc6999) <br>
+ * A runnable that reads files and pushes the contents into a queue to be
+ * processed.
  */
 public final class ReadTask implements Runnable {
 
     private final File file;
     private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
 
+    /**
+     * Creates a new ReadTask.
+     *
+     * @param file the file to read from.
+     * @param entryLists the list of queue's to send the parsed data into.
+     */
     public ReadTask(File file, ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists) {
         this.file = file;
         this.entryLists = entryLists;

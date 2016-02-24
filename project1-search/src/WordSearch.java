@@ -7,7 +7,8 @@ import java.util.regex.Pattern;
 
 
 /**
- * @author Joseph Cumbo (jwc6999)
+ * @author Joseph Cumbo (jwc6999) <br>
+ * Base word search class.
  */
 public final class WordSearch {
 
@@ -73,6 +74,11 @@ public final class WordSearch {
         this.readerGroup = new ThreadGroup("Readers");
     }
 
+    /**
+     * Add a word that the incoming file data will be scanned for.
+     *
+     * @param word the word to scan for.
+     */
     public final void addWord(String word) {
         LinkedBlockingQueue queue = new LinkedBlockingQueue<>();
         Thread thread = new Thread(searcherGroup, new SearchTask(word, queue), "Searcher for '" + word + "'");
@@ -81,18 +87,29 @@ public final class WordSearch {
         thread.start();
     }
 
+    /**
+     * Adds a file to be parsed into the word search.
+     *
+     * @param file the file to be parsed.
+     */
     public final void addFile(File file) {
         Thread thread = new Thread(readerGroup, new ReadTask(file, entryLists), "Reader for '" + file.getName() + "'");
         readers.add(thread);
         thread.start();
     }
 
+    /**
+     * Shuts down the WordSearch, waiting for all the readers and searchers to
+     * finishing before returning.
+     *
+     * @throws InterruptedException
+     */
     public final void shutdown() throws InterruptedException {
         for (Thread reader : readers) {
             reader.join();
         }
         for (LinkedBlockingQueue<Entry> entryList : entryLists) {
-            while(!entryList.isEmpty()) {
+            while (!entryList.isEmpty()) {
                 // Do nothing.
             }
         }

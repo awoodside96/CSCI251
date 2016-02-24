@@ -4,7 +4,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 
 /**
- * @author Joseph Cumbo (jwc6999)
+ * @author Joseph Cumbo (jwc6999) <br>
+ * A runnable that monitors a queue for incoming data and checks if a word
+ * appears in it.
  */
 public final class SearchTask implements Runnable {
 
