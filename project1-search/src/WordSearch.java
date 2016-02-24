@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 
@@ -37,7 +38,14 @@ public final class WordSearch {
 
         String[] fileNames = args[0].split(",");
         String[] words = args[1].toLowerCase().split(",");
-        WordSearch search = new WordSearch(words);
+        WordSearch search = new WordSearch();
+
+        /**
+         * Add words to the searcher.
+         */
+        for (int i = 0; i < words.length; i++) {
+            search.addWord(words[i]);
+        }
 
         /**
          * Add files to the searcher.
@@ -56,28 +64,22 @@ public final class WordSearch {
         search.catchup();
     }
 
-    private final LinkedBlockingQueue<Entry>[] entryLists;
+    private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
     private final ArrayList<Thread> searchers = new ArrayList<Thread>();
     private final ArrayList<Thread> readers = new ArrayList<Thread>();
     private final ThreadGroup searcherGroup = new ThreadGroup("Searchers");
     private final ThreadGroup readerGroup = new ThreadGroup("Readers");
 
-    public WordSearch(String[] words) {
-        /**
-         * Create a queue for each searcher thread.
-         */
-        this.entryLists = new LinkedBlockingQueue[words.length];
-        for (int i = 0; i < words.length; i++) {
-            entryLists[i] = new LinkedBlockingQueue<>();
-            Thread thread = new Thread(searcherGroup, new SearchTask(words[i], entryLists[i]), "Searcher for '" + words[i] + "'");
-            searchers.add(thread);
-        }
-        /**
-         * Start the searcher threads.
-         */
-        for (Thread thread : searchers) {
-            thread.start();
-        }
+    public WordSearch() {
+        this.entryLists = new ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>>();
+    }
+
+    public final void addWord(String word) {
+        LinkedBlockingQueue queue = new LinkedBlockingQueue<>();
+        Thread thread = new Thread(searcherGroup, new SearchTask(word, queue), "Searcher for '" + word + "'");
+        entryLists.add(queue);
+        searchers.add(thread);
+        thread.start();
     }
 
     public final void addFile(File file) {
@@ -87,9 +89,9 @@ public final class WordSearch {
     }
 
     public final void catchup() throws InterruptedException {
-        while (readerGroup.activeCount() > 0 || !entryList.isEmpty()) {
+        for (Thread reader : readers) {
+            reader.join();
         }
-        searcherGroup.interrupt();
     }
 
     public static final class Entry {
@@ -106,9 +108,9 @@ public final class WordSearch {
     public static final class ReadTask implements Runnable {
 
         private final File file;
-        private final LinkedBlockingQueue<Entry>[] entryLists;
+        private final ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists;
 
-        public ReadTask(File file, LinkedBlockingQueue<Entry>[] entryLists) {
+        public ReadTask(File file, ConcurrentLinkedQueue<LinkedBlockingQueue<Entry>> entryLists) {
             this.file = file;
             this.entryLists = entryLists;
         }
@@ -124,8 +126,9 @@ public final class WordSearch {
                     /**
                      * Send the line to each searcher to be compared.
                      */
-                    for (int i = 0; i < entryLists.length; i++) {
-                        entryLists[i].offer(new Entry(line.toLowerCase(), file.getName()));
+                    Entry entry = new Entry(line.toLowerCase(), file.getName());
+                    for (LinkedBlockingQueue<Entry> entryList : entryLists) {
+                        entryList.offer(entry);
                     }
                 }
             } catch (FileNotFoundException ex) {
