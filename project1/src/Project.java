@@ -4,8 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.HashSet;
 import java.util.concurrent.LinkedBlockingQueue;
 
 
@@ -24,123 +23,102 @@ public class Project {
         }
         String[] fileNames = args[0].split(",");
         String[] words = args[1].toLowerCase().split(",");
-        WordSearch search = new WordSearch(words);
+        WordSearch search = new WordSearch();
+        /**
+         * Add searchable words to the searcher.
+         */
+        for (int i = 0; i < words.length; i++) {
+            search.addWord(words[i]);
+        }
+        /**
+         * Add valid files to the searcher.
+         */
         for (int i = 0; i < fileNames.length; i++) {
-            File file = new File(fileNames[i]);
-            if (!file.exists()) {
-                System.out.println("The file '" + fileNames[i] + "' does not exist, skipping.");
-                continue;
-            }
-            search.addFile(file);
+            search.addFile(new File(fileNames[i]));
         }
         search.catchup();
     }
 
-    public static final class Line {
+    public static final class Entry {
 
-        public final String line;
-        public final String fileName;
+        public final String text;
+        public final String file;
 
-        public Line(String line, String fileName) {
-            this.line = line;
-            this.fileName = fileName;
+        public Entry(String text, String file) {
+            this.text = text;
+            this.file = file;
         }
     }
 
     public static final class WordSearch {
 
-        private final LinkedBlockingQueue<File> fileList = new LinkedBlockingQueue<File>();
-        private final LinkedBlockingQueue<Line> lineList = new LinkedBlockingQueue<Line>();
-        private final ExecutorService readPool;
-        private final ExecutorService searchPool;
-
-        /**
-         * Creates a new WordSearch object.
-         *
-         * @param words the words to search for.
-         */
-        public WordSearch(String[] words) {
-            this.readPool = Executors.newWorkStealingPool();
-            this.searchPool = Executors.newWorkStealingPool();
-            for (int i = 0; i < words.length; i++) {
-                this.searchPool.submit(new SearchTask(words, lineList));
-                this.readPool.submit(new ReadTask(fileList, lineList));
-            }
-        }
+        private final LinkedBlockingQueue<Entry> entryList = new LinkedBlockingQueue<Entry>();
+        private final ThreadGroup readers = new ThreadGroup("Readers");
+        private final ThreadGroup searchers = new ThreadGroup("Searchers");
 
         public final void addFile(File file) {
-            fileList.offer(file);
+            new Thread(readers, new ReadTask(file, entryList), "Reader for '" + file.getName() + "'").start();
+        }
+
+        public final void addWord(String word) {
+            new Thread(searchers, new SearchTask(word, entryList), "Searcher for '" + word + "'").start();
         }
 
         public final void catchup() throws InterruptedException {
-            int iterations = 0;
-            while (fileList.size() + lineList.size() > 0) {
-                Thread.sleep(10);
-                iterations++;
+            while (readers.activeCount() > 0 || !entryList.isEmpty()) {
             }
-            System.out.println(iterations);
-//                System.out.println("Triggered " + fileList.size() + lineList.size());
+            searchers.interrupt();
         }
     }
 
     public static final class ReadTask implements Runnable {
 
-        private final LinkedBlockingQueue<File> fileList;
-        private final LinkedBlockingQueue<Line> lineList;
+        private final File file;
+        private final LinkedBlockingQueue<Entry> lineList;
 
-        public ReadTask(LinkedBlockingQueue<File> fileList, LinkedBlockingQueue<Line> lineList) {
-            this.fileList = fileList;
+        public ReadTask(File file, LinkedBlockingQueue<Entry> lineList) {
+            this.file = file;
             this.lineList = lineList;
         }
 
         @Override
         public final void run() {
-            try {
-                while (true) {
-                    File file = fileList.take();
-                    try {
-                        BufferedReader reader = new BufferedReader(new FileReader(file));
-                        String fileName = file.getName();
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            lineList.offer(new Line(line.toLowerCase(), fileName));
-                        }
-                    } catch (FileNotFoundException ex) {
-                        System.out.println("Unable to find file '" + file.getName() + "'.");
-                    } catch (IOException ex) {
-                        System.out.println("Problem while reading file file '" + file.getName() + "'.");
-                    }
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    lineList.offer(new Entry(line.toLowerCase(), file.getName()));
                 }
-            } catch (InterruptedException ex) {
-                System.out.println("Interrupted file reader");
+            } catch (FileNotFoundException ex) {
+                System.out.println("Unable to find file '" + file.getName() + "', skipping.");
+            } catch (IOException ex) {
+                System.out.println("Problem while reading file '" + file.getName() + "', skipping.");
             }
         }
     }
 
     public static final class SearchTask implements Runnable {
 
-        private final String[] words;
-        private final LinkedBlockingQueue<Line> lineList;
+        private final String word;
+        private final LinkedBlockingQueue<Entry> entryList;
+        private final HashSet<String> matchedFiles = new HashSet<String>();
 
-        public SearchTask(String[] words, LinkedBlockingQueue<Line> lineList) {
-            this.words = words;
-            this.lineList = lineList;
+        public SearchTask(String word, LinkedBlockingQueue<Entry> lineList) {
+            this.word = word;
+            this.entryList = lineList;
         }
 
         @Override
         public final void run() {
             try {
-                while (true) {
-                    Line line = lineList.take();
-                    for (int i = 0; i < words.length; i++) {
-                        if (line.line.contains(words[i])) {
-                            System.out.println(words[i] + " " + line.fileName);
-                            continue;
-                        }
+                while (!Thread.interrupted()) {
+                    Entry line = entryList.take();
+                    if (!matchedFiles.contains(line.file) && line.text.contains(word)) {
+                        matchedFiles.add(line.file);
+                        System.out.println(word + " " + line.file);
                     }
                 }
             } catch (InterruptedException ex) {
-                System.out.println("Interrupted word searcher");
+                // Quietly close
             }
         }
     }
