@@ -1,3 +1,4 @@
+a2875b5 - Break on invalid characters in the word list
 43bd12c - Cleanup type annotations
 928a2b2 - Add additional documentation
 5c6055c - Break project into seperate files
