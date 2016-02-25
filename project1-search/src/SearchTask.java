@@ -1,6 +1,7 @@
 
 import java.util.HashSet;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.regex.Pattern;
 
 
 /**
@@ -13,6 +14,7 @@ public final class SearchTask implements Runnable {
     private final String word;
     private final LinkedBlockingQueue<Entry> entryList;
     private final HashSet<String> matchedFiles = new HashSet<String>();
+    private final Pattern matchingPattern;
 
     /**
      * Create a new SearchTask.
@@ -23,16 +25,17 @@ public final class SearchTask implements Runnable {
     public SearchTask(String word, LinkedBlockingQueue<Entry> lineList) {
         this.word = word;
         this.entryList = lineList;
+        this.matchingPattern = Pattern.compile("\\b(" + word + ")\\b");
     }
 
     @Override
     public final void run() {
         try {
             while (!Thread.interrupted()) {
-                Entry line = entryList.take();
-                if (!matchedFiles.contains(line.file) && line.text.contains(word)) {
-                    matchedFiles.add(line.file);
-                    System.out.println(word + " " + line.file);
+                Entry entry = entryList.take();
+                if (!matchedFiles.contains(entry.file) && matchingPattern.matcher(entry.text).find()) {
+                    matchedFiles.add(entry.file);
+                    System.out.println(word + " " + entry.file);
                 }
             }
         } catch (InterruptedException ex) {
