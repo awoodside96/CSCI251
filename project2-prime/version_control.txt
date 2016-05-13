@@ -1,0 +1,5 @@
+5c6055c - Add input handling
+db7239b - Make thread safe
+19feab2 - Implement witness counting
+2423b99 - Add loop runner class
+ff1a7bd - Start project 2
